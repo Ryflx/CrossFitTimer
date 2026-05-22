@@ -117,19 +117,107 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 /* Display */
 .display {
   display: grid;
+  grid-template-rows: 1fr;
+  align-items: stretch;
+  justify-items: stretch;
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Chassis — the simulated clock housing */
+.chassis {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background:
+    radial-gradient(ellipse at top, #181818 0%, #0a0a0a 60%, #050505 100%);
+  box-shadow:
+    inset 0 1px 0 #2a2a2a,
+    inset 0 -1px 0 #000,
+    0 1px 0 #1a1a1a,
+    0 4px 24px rgba(0,0,0,0.6);
+  border: 1px solid #1d1d1d;
+  min-height: 0;
+}
+
+/* Indicator LEDs across the top */
+.indicators {
+  display: flex;
+  gap: 18px;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid #1a1a1a;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.led {
+  position: relative;
+  padding-left: 14px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.25em;
+  color: #4a4a4a;
+  text-transform: uppercase;
+  transition: color .2s;
+}
+.led::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 50%;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.6);
+  transform: translateY(-50%);
+  transition: background .15s, box-shadow .15s;
+}
+.app[data-phase="work"]    .led[data-led="work"]  { color: var(--work); }
+.app[data-phase="work"]    .led[data-led="work"]::before { background: var(--work); box-shadow: 0 0 8px var(--work); }
+.app[data-phase="rest"]    .led[data-led="rest"]  { color: var(--rest); }
+.app[data-phase="rest"]    .led[data-led="rest"]::before { background: var(--rest); box-shadow: 0 0 8px var(--rest); }
+.app[data-phase="done"]    .led[data-led="done"]  { color: var(--done); }
+.app[data-phase="done"]    .led[data-led="done"]::before { background: var(--done); box-shadow: 0 0 8px var(--done); }
+.app[data-state="running"][data-mode="interval"]  .led[data-led="round"],
+.app[data-state="running"][data-mode="emom"]      .led[data-led="round"],
+.app[data-state="running"][data-mode="amrap"]     .led[data-led="round"] { color: var(--display); }
+.app[data-state="running"][data-mode="interval"]  .led[data-led="round"]::before,
+.app[data-state="running"][data-mode="emom"]      .led[data-led="round"]::before,
+.app[data-state="running"][data-mode="amrap"]     .led[data-led="round"]::before {
+  background: var(--display); box-shadow: 0 0 8px var(--display);
+}
+
+.screen {
+  display: grid;
   grid-template-rows: auto 1fr auto auto auto;
   align-items: center;
   justify-items: center;
-  padding: 12px 16px;
   text-align: center;
-  position: relative;
+  background:
+    radial-gradient(ellipse at center, #050505 0%, #000 70%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+  border-radius: 10px;
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.9), inset 0 0 2px rgba(255,255,255,0.05);
+  padding: 16px 12px;
+  min-height: 0;
 }
-.phase {
-  min-height: 28px;
-  color: var(--muted);
+
+.badge {
+  text-align: center;
+  font-size: 9px;
   letter-spacing: 0.4em;
-  font-size: clamp(14px, 2.6vw, 22px);
-  font-weight: 700;
+  color: #2a2a2a;
+  padding-top: 4px;
+}
+
+.phase {
+  min-height: 18px;
+  color: var(--muted);
+  letter-spacing: 0.45em;
+  font-size: clamp(12px, 2vw, 16px);
+  font-weight: 800;
 }
 .app[data-phase="work"]    .phase { color: var(--work); }
 .app[data-phase="rest"]    .phase { color: var(--rest); }
@@ -137,18 +225,38 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .app[data-phase="done"]    .phase { color: var(--done); }
 
 .time {
-  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-  font-size: clamp(6rem, 28vw, 22rem);
-  line-height: 0.95;
-  color: var(--display);
-  text-shadow:
-    0 0 8px var(--display-glow),
-    0 0 24px var(--display-glow);
-  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   align-self: center;
+  width: 100%;
+  min-height: 0;
 }
+.led-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 96%;
+}
+.time-svg {
+  width: 100%;
+  height: auto;
+  max-height: 36vh;
+  display: block;
+}
+@media (orientation: landscape) {
+  .time-svg { max-height: 60vh; }
+}
+.time-svg .seg { fill: rgba(255, 42, 42, 0.06); }
+.time-svg .seg.on {
+  fill: var(--display);
+  filter:
+    drop-shadow(0 0 3px var(--display-glow))
+    drop-shadow(0 0 8px var(--display-glow));
+}
+.time-svg .dot-on  { fill: var(--display); filter: drop-shadow(0 0 6px var(--display-glow)); }
+.time-svg .dot-off { fill: rgba(255, 42, 42, 0.06); }
 .sub {
   font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   font-weight: 700;
@@ -170,6 +278,108 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
   opacity: 0.7;
   min-height: 1em;
   margin-top: 6px;
+}
+
+/* ---------- Remote-mode guide ---------- */
+.remote-guide { display: none; padding: 8px 12px 16px; overflow-y: auto; }
+.app[data-mode="remote"] .chassis { display: none; }
+.app[data-mode="remote"] .remote-guide { display: grid; grid-template-rows: auto auto 1fr auto; gap: 12px; }
+
+.remote-summary {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  justify-content: center;
+}
+.remote-summary .chip {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.remote-summary .chip strong { color: var(--accent); }
+
+.remote-stepinfo {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 6px;
+  text-align: center;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.step-counter {
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.3em;
+  font-weight: 800;
+}
+.step-text {
+  font-size: clamp(15px, 3vw, 19px);
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.remote-keypad {
+  --pad: clamp(56px, 9vw, 86px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, var(--pad));
+  grid-auto-rows: var(--pad);
+  gap: 10px;
+  padding: 18px;
+  background:
+    linear-gradient(180deg, #1c1c1c 0%, #0e0e0e 100%);
+  border: 1px solid #232323;
+  border-radius: 22px;
+  box-shadow:
+    inset 0 1px 0 #2a2a2a,
+    inset 0 -1px 0 #000,
+    0 6px 18px rgba(0,0,0,0.5);
+}
+.key {
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  font-weight: 800;
+  font-size: clamp(11px, 1.8vw, 14px);
+  letter-spacing: 0.06em;
+  color: #d6d6d6;
+  background: linear-gradient(180deg, #2a2a2a, #161616);
+  border: 1px solid #303030;
+  border-radius: 12px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    inset 0 -2px 4px rgba(0,0,0,0.5);
+  transition: transform .08s, box-shadow .15s, color .15s, background .15s;
+}
+.key.wide { grid-column: span 3; }
+.key.medium { grid-column: span 2; }
+.key.func, .key.set { color: var(--accent); }
+.key.start { color: #29d36e; }
+.key.stop  { color: var(--rest); }
+.key.clr   { color: var(--muted); }
+.key.active {
+  color: #000;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 20px var(--display-glow),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+  transform: scale(0.97);
+}
+.key.disabled { opacity: 0.4; }
+
+.remote-disclaimer {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+  padding: 0 12px;
+  line-height: 1.4;
 }
 
 /* Flash overlay for transitions */
@@ -216,6 +426,15 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .ctrl-lap { background: var(--panel-2); display: none; }
 .app[data-mode="amrap"][data-state="running"] .ctrl-lap,
 .app[data-mode="amrap"][data-state="paused"]  .ctrl-lap { display: block; }
+
+/* Remote mode swaps Start/Reset for Prev/Next */
+.ctrl-prev, .ctrl-next { display: none; }
+.app[data-mode="remote"] .ctrl-reset,
+.app[data-mode="remote"] .ctrl-start,
+.app[data-mode="remote"] .ctrl-lap { display: none; }
+.app[data-mode="remote"] .controls { grid-template-columns: 1fr 1fr; }
+.app[data-mode="remote"] .ctrl-prev { display: block; background: var(--panel-2); }
+.app[data-mode="remote"] .ctrl-next { display: block; background: var(--accent); color: #000; border-color: var(--accent); }
 
 /* Clock mode hides reset/lap, makes start big-clock-only */
 .app[data-mode="clock"] .controls { grid-template-columns: 1fr; }

@@ -35,20 +35,48 @@
     <button class="mode" data-mode="interval"  role="tab">INTERVAL</button>
     <button class="mode" data-mode="emom"      role="tab">EMOM</button>
     <button class="mode" data-mode="amrap"     role="tab">AMRAP</button>
+    <button class="mode" data-mode="remote"    role="tab">REMOTE</button>
   </nav>
 
   <main class="display" id="display">
-    <div class="phase" id="phase"></div>
-    <div class="time" id="time">00:00</div>
-    <div class="sub" id="sub"></div>
-    <div class="rounds" id="rounds"></div>
-    <div class="hint" id="hint"></div>
+    <div class="chassis">
+      <div class="indicators">
+        <span class="led" data-led="work">WORK</span>
+        <span class="led" data-led="rest">REST</span>
+        <span class="led" data-led="round">ROUND</span>
+        <span class="led" data-led="done">DONE</span>
+      </div>
+      <div class="screen">
+        <div class="phase" id="phase"></div>
+        <div class="time" id="time"><span class="led-text" id="ledText">00:00</span></div>
+        <div class="sub" id="sub"></div>
+        <div class="rounds" id="rounds"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+      <div class="badge">ROGUE-STYLE WOD CLOCK</div>
+    </div>
+
+    <!-- Remote programming guide (only visible in remote mode) -->
+    <div class="remote-guide" id="remoteGuide">
+      <div class="remote-summary" id="remoteSummary"></div>
+      <div class="remote-stepinfo">
+        <span class="step-counter" id="stepCounter">Step 1 of 1</span>
+        <span class="step-text" id="stepText"></span>
+      </div>
+      <div class="remote-keypad" id="remoteKeypad" role="group" aria-label="Remote keypad"></div>
+      <div class="remote-disclaimer">
+        Sequences are for the Rogue BT-7000 / Echo Gym Timer. Older firmware may label
+        FUNC as "MODE". Verify on first use.
+      </div>
+    </div>
   </main>
 
   <footer class="controls">
     <button id="resetBtn" class="ctrl ctrl-reset" type="button">RESET</button>
     <button id="startBtn" class="ctrl ctrl-start" type="button">START</button>
     <button id="lapBtn" class="ctrl ctrl-lap" type="button">+1 ROUND</button>
+    <button id="prevStepBtn" class="ctrl ctrl-prev" type="button">PREV</button>
+    <button id="nextStepBtn" class="ctrl ctrl-next" type="button">NEXT</button>
   </footer>
 
   <!-- Settings sheet -->
@@ -180,6 +208,34 @@
             <button data-amrap="1200">20 min</button>
           </div>
           <p class="muted">Tap the time during the workout to add a round.</p>
+        </section>
+
+        <section class="settings-section" data-for="remote">
+          <h3>Remote — Clock model</h3>
+          <label class="row">
+            <span>Model</span>
+            <select id="remoteModel">
+              <option value="bt7000">Rogue BT-7000 / Echo Gym Timer</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="settings-section" data-for="remote">
+          <h3>Remote — Workout to program</h3>
+          <label class="row">
+            <span>Type</span>
+            <select id="remoteType">
+              <option value="stopwatch">Stopwatch (count up)</option>
+              <option value="countdown">Countdown</option>
+              <option value="interval">Interval / Tabata</option>
+              <option value="emom">EMOM</option>
+              <option value="amrap">AMRAP (uses Countdown)</option>
+            </select>
+          </label>
+          <p class="muted">
+            Use the Countdown / Interval / EMOM / AMRAP sections above to set the
+            durations and rounds — the remote sequence reads from those.
+          </p>
         </section>
       </div>
 

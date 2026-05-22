@@ -117,22 +117,136 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+  // ---------- 7-segment LED renderer ----------
+  // Segment map: which segments are lit per character.
+  const SEG_MAP = {
+    '0': 'abcdef',
+    '1': 'bc',
+    '2': 'abdeg',
+    '3': 'abcdg',
+    '4': 'bcfg',
+    '5': 'acdfg',
+    '6': 'acdefg',
+    '7': 'abc',
+    '8': 'abcdefg',
+    '9': 'abcdfg',
+    'A': 'abcefg',
+    'b': 'cdefg',
+    'C': 'adef',
+    'd': 'bcdeg',
+    'E': 'adefg',
+    'F': 'aefg',
+    'G': 'acdef',
+    'P': 'abefg',
+    'r': 'eg',
+    'o': 'cdeg',
+    'M': 'aceg',
+    ' ': '',
+    '-': 'g',
+  };
+  // Polygon paths for each segment in a 60×100 viewBox.
+  const SEG_PATHS = {
+    a: 'M10,4 L50,4 L44,12 L16,12 Z',
+    b: 'M52,6 L52,46 L46,42 L46,14 Z',
+    c: 'M52,54 L52,94 L46,86 L46,58 Z',
+    d: 'M16,88 L44,88 L50,96 L10,96 Z',
+    e: 'M8,54 L8,94 L14,86 L14,58 Z',
+    f: 'M8,6 L8,46 L14,42 L14,14 Z',
+    g: 'M10,50 L16,46 L44,46 L50,50 L44,54 L16,54 Z',
+  };
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+
+  const DIGIT_W = 60, COLON_W = 22, H = 100, GAP = 6;
+
+  function drawDigit(parent, ch) {
+    const on = new Set(SEG_MAP[ch] || '');
+    // Ghost (all segments dim) layer + on layer on top.
+    for (const [key, d] of Object.entries(SEG_PATHS)) {
+      const p = document.createElementNS(SVG_NS, 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('class', 'seg seg-' + key + (on.has(key) ? ' on' : ''));
+      parent.appendChild(p);
+    }
+  }
+  function drawColon(parent) {
+    for (const y of [32, 68]) {
+      const c = document.createElementNS(SVG_NS, 'circle');
+      c.setAttribute('cx', 11); c.setAttribute('cy', y); c.setAttribute('r', 5.5);
+      c.setAttribute('class', 'dot-on');
+      parent.appendChild(c);
+    }
+  }
+  function drawDot(parent) {
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', 11); c.setAttribute('cy', 88); c.setAttribute('r', 5.5);
+    c.setAttribute('class', 'dot-on');
+    parent.appendChild(c);
+  }
+
+  // Render a string as one SVG with viewBox sized to content so it scales
+  // uniformly inside the available display area, regardless of length.
+  const Display = {
+    last: '',
+    set(text) {
+      text = String(text);
+      if (text === this.last) return;
+      this.last = text;
+
+      const widths = [];
+      const kinds = [];
+      for (const ch of text) {
+        if (ch === ':')      { widths.push(COLON_W); kinds.push({ k: 'colon' }); }
+        else if (ch === '.') { widths.push(COLON_W); kinds.push({ k: 'dot' }); }
+        else                 { widths.push(DIGIT_W); kinds.push({ k: 'digit', ch: ch.toUpperCase() }); }
+      }
+      const totalW = widths.reduce((a, b) => a + b, 0) + GAP * Math.max(0, widths.length - 1);
+
+      const svg = document.createElementNS(SVG_NS, 'svg');
+      svg.setAttribute('viewBox', `0 0 ${totalW} ${H}`);
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      svg.setAttribute('class', 'time-svg');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('role', 'img');
+
+      let x = 0;
+      kinds.forEach((it, i) => {
+        const g = document.createElementNS(SVG_NS, 'g');
+        g.setAttribute('transform', `translate(${x}, 0)`);
+        if (it.k === 'digit') drawDigit(g, it.ch);
+        else if (it.k === 'colon') drawColon(g);
+        else drawDot(g);
+        svg.appendChild(g);
+        x += widths[i] + GAP;
+      });
+
+      el.ledText.replaceChildren(svg);
+    },
+  };
+
   const el = {
     app: $('#app'),
     display: $('#display'),
     phase: $('#phase'),
     time: $('#time'),
+    ledText: $('#ledText'),
     sub: $('#sub'),
     rounds: $('#rounds'),
     hint: $('#hint'),
     startBtn: $('#startBtn'),
     resetBtn: $('#resetBtn'),
     lapBtn: $('#lapBtn'),
+    prevStepBtn: $('#prevStepBtn'),
+    nextStepBtn: $('#nextStepBtn'),
     settingsBtn: $('#settingsBtn'),
     fullscreenBtn: $('#fullscreenBtn'),
     modeButtons: $$('.mode'),
     sheet: $('#sheet'),
     sheetDone: $('#sheetDone'),
+    remoteGuide: $('#remoteGuide'),
+    remoteSummary: $('#remoteSummary'),
+    remoteKeypad: $('#remoteKeypad'),
+    stepCounter: $('#stepCounter'),
+    stepText: $('#stepText'),
   };
 
   // ---------- App ----------
@@ -148,6 +262,7 @@
     interval:  { work: 20, rest: 10, rounds: 8 },
     emom:      { interval: 60, rounds: 10 },
     amrap:     { sec: 600 },
+    remote:    { model: 'bt7000', type: 'interval' },
   };
 
   const app = {
@@ -169,7 +284,14 @@
     el.app.dataset.mode = mode;
     el.sheet.dataset.mode = mode;
     el.modeButtons.forEach(b => b.setAttribute('aria-selected', b.dataset.mode === mode ? 'true' : 'false'));
-    resetTimer();
+    if (mode === 'remote') {
+      app.remote = { step: 0 };
+      cancelAnimationFrame(app.rafId);
+      setState('idle');
+      renderRemote();
+    } else {
+      resetTimer();
+    }
     app.settings.mode = mode;
     Store.save(app.settings);
   }
@@ -219,13 +341,213 @@
       case 'interval':  return renderInterval();
       case 'emom':      return renderEMOM();
       case 'amrap':     return renderAMRAP();
+      case 'remote':    return renderRemote();
     }
   }
 
+  // ---------- Remote sequence module ----------
+  // Each generator returns an array of [button, instruction] pairs.
+  // Buttons are matched against the keypad layout below by label.
+  const RemoteSeq = {
+    models: {
+      bt7000: {
+        name: 'Rogue BT-7000 / Echo Gym Timer',
+        // Keypad layout (rows × 3 columns). `wide` and `medium` span columns.
+        keypad: [
+          [{ label: 'FUNC', cls: 'func', span: 'medium' }, { label: 'SET', cls: 'set', span: 1 }],
+          [{ label: '1' }, { label: '2' }, { label: '3' }],
+          [{ label: '4' }, { label: '5' }, { label: '6' }],
+          [{ label: '7' }, { label: '8' }, { label: '9' }],
+          [{ label: 'CLR', cls: 'clr' }, { label: '0' }, { label: '·', cls: 'clr' }],
+          [{ label: 'START', cls: 'start', span: 'medium' }, { label: 'STOP', cls: 'stop' }],
+        ],
+        seq: {
+          stopwatch: () => [
+            ['FUNC',  'Press FUNC until the top line reads "STOPWATCH" (the display shows 0:00 with no preset).'],
+            ['START', 'Press START to begin counting up. STOP pauses, STOP twice resets.'],
+          ],
+          countdown: (cfg) => {
+            const mmss = pad(cfg.min) + pad(cfg.sec);
+            const steps = [
+              ['FUNC',  'Press FUNC until the top line reads "COUNTDOWN".'],
+              ['SET',   'Press SET to enter the duration.'],
+            ];
+            for (let i = 0; i < 4; i++) {
+              steps.push([mmss[i], `Enter ${mmss[i]} — digit ${i + 1} of 4 (MMSS = ${pad(cfg.min)}:${pad(cfg.sec)}).`]);
+            }
+            steps.push(['SET',   `Press SET to confirm ${pad(cfg.min)}:${pad(cfg.sec)}.`]);
+            steps.push(['START', 'Press START to begin the countdown.']);
+            return steps;
+          },
+          interval: (cfg) => {
+            const rounds = pad(cfg.rounds);
+            const workMmss = pad(Math.floor(cfg.work / 60)) + pad(cfg.work % 60);
+            const restMmss = pad(Math.floor(cfg.rest / 60)) + pad(cfg.rest % 60);
+            const steps = [
+              ['FUNC',  'Press FUNC until the top line reads "TABATA" (used for any work/rest interval).'],
+              ['SET',   'Press SET to start programming. First field is ROUNDS.'],
+            ];
+            for (let i = 0; i < 2; i++) {
+              steps.push([rounds[i], `Enter ${rounds[i]} — digit ${i + 1} of 2 for ROUNDS (${cfg.rounds}).`]);
+            }
+            steps.push(['SET', `Confirm ${cfg.rounds} rounds. Next field is WORK time.`]);
+            for (let i = 0; i < 4; i++) {
+              steps.push([workMmss[i], `Enter ${workMmss[i]} — digit ${i + 1} of 4 for WORK (${workMmss.slice(0,2)}:${workMmss.slice(2)}).`]);
+            }
+            steps.push(['SET', 'Confirm work time. Next field is REST time.']);
+            for (let i = 0; i < 4; i++) {
+              steps.push([restMmss[i], `Enter ${restMmss[i]} — digit ${i + 1} of 4 for REST (${restMmss.slice(0,2)}:${restMmss.slice(2)}).`]);
+            }
+            steps.push(['SET',   'Confirm rest time.']);
+            steps.push(['START', 'Press START. Work timer counts down, beep, rest timer counts down, repeat for all rounds.']);
+            return steps;
+          },
+          emom: (cfg) => {
+            // BT-7000 doesn't have a separate EMOM program — use Tabata with 0 rest.
+            const rounds = pad(cfg.rounds);
+            const intMmss = pad(Math.floor(cfg.interval / 60)) + pad(cfg.interval % 60);
+            const steps = [
+              ['FUNC',  'Press FUNC until the top line reads "TABATA". (EMOM is Tabata with zero rest.)'],
+              ['SET',   'Press SET to start programming. First field is ROUNDS.'],
+            ];
+            for (let i = 0; i < 2; i++) {
+              steps.push([rounds[i], `Enter ${rounds[i]} — digit ${i + 1} of 2 for ROUNDS (${cfg.rounds}).`]);
+            }
+            steps.push(['SET', `Confirm ${cfg.rounds} rounds. Next field is WORK time (this is your EMOM interval).`]);
+            for (let i = 0; i < 4; i++) {
+              steps.push([intMmss[i], `Enter ${intMmss[i]} — digit ${i + 1} of 4 for INTERVAL (${intMmss.slice(0,2)}:${intMmss.slice(2)}).`]);
+            }
+            steps.push(['SET', 'Confirm interval. Next field is REST — enter all zeros.']);
+            for (let i = 0; i < 4; i++) {
+              steps.push(['0', `Enter 0 — digit ${i + 1} of 4 for REST (0:00).`]);
+            }
+            steps.push(['SET',   'Confirm zero rest.']);
+            steps.push(['START', 'Press START. Each round ticks for one full interval, then the next begins with a beep.']);
+            return steps;
+          },
+          amrap: (cfg) => {
+            // AMRAP = Countdown on the clock; you count rounds yourself.
+            return RemoteSeq.models.bt7000.seq.countdown(cfg).map(([b, t], i, arr) => {
+              if (i === arr.length - 1) return [b, t + ' (count your rounds on the floor — the clock just displays remaining time.)'];
+              return [b, t];
+            });
+          },
+        },
+      },
+    },
+
+    generate(modelId, type) {
+      const model = this.models[modelId] || this.models.bt7000;
+      const fn = model.seq[type];
+      if (!fn) return { model, steps: [], cfg: null };
+      const cfg = this.cfgFor(type);
+      return { model, cfg, steps: fn(cfg) };
+    },
+
+    cfgFor(type) {
+      const s = app.settings;
+      if (type === 'countdown' || type === 'amrap') {
+        const sec = (type === 'amrap' ? s.amrap.sec : s.countdown.sec);
+        return { min: Math.floor(sec / 60), sec: sec % 60 };
+      }
+      if (type === 'interval') {
+        return { work: s.interval.work, rest: s.interval.rest, rounds: s.interval.rounds };
+      }
+      if (type === 'emom') {
+        return { interval: s.emom.interval, rounds: s.emom.rounds };
+      }
+      return {};
+    },
+
+    summaryChips(type, cfg) {
+      const label = ({
+        stopwatch: 'STOPWATCH',
+        countdown: 'COUNTDOWN',
+        interval:  'INTERVAL',
+        emom:      'EMOM',
+        amrap:     'AMRAP',
+      })[type] || type.toUpperCase();
+      const chips = [`<span class="chip"><strong>${label}</strong></span>`];
+      if (type === 'countdown' || type === 'amrap') {
+        chips.push(`<span class="chip">${pad(cfg.min)}:${pad(cfg.sec)}</span>`);
+      } else if (type === 'interval') {
+        chips.push(`<span class="chip">${cfg.work}s work</span>`);
+        chips.push(`<span class="chip">${cfg.rest}s rest</span>`);
+        chips.push(`<span class="chip">${cfg.rounds} rounds</span>`);
+      } else if (type === 'emom') {
+        const m = Math.floor(cfg.interval / 60), s = cfg.interval % 60;
+        chips.push(`<span class="chip">${m}:${pad(s)} interval</span>`);
+        chips.push(`<span class="chip">${cfg.rounds} rounds</span>`);
+      }
+      return chips.join('');
+    },
+  };
+
+  // ---------- Remote mode render ----------
+  function renderRemoteKeypad(activeBtn) {
+    const model = RemoteSeq.models[app.settings.remote.model] || RemoteSeq.models.bt7000;
+    el.remoteKeypad.innerHTML = '';
+    for (const row of model.keypad) {
+      for (const btn of row) {
+        const div = document.createElement('div');
+        const classes = ['key'];
+        if (btn.cls) classes.push(btn.cls);
+        if (btn.span === 'medium') classes.push('medium');
+        if (btn.span === 'wide') classes.push('wide');
+        if (btn.label === activeBtn) classes.push('active');
+        div.className = classes.join(' ');
+        div.textContent = btn.label;
+        el.remoteKeypad.appendChild(div);
+      }
+    }
+  }
+
+  function renderRemote() {
+    // Make sure we have remote settings.
+    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
+    const { model: modelId, type } = app.settings.remote;
+    const result = RemoteSeq.generate(modelId, type);
+    app.remote = app.remote || { step: 0 };
+    if (app.remote.step >= result.steps.length) app.remote.step = Math.max(0, result.steps.length - 1);
+    const step = result.steps[app.remote.step] || ['', 'No sequence available.'];
+
+    el.remoteSummary.innerHTML = RemoteSeq.summaryChips(type, result.cfg || {});
+    el.stepCounter.textContent = result.steps.length
+      ? `STEP ${app.remote.step + 1} OF ${result.steps.length}`
+      : 'NO STEPS';
+    el.stepText.textContent = step[1];
+
+    renderRemoteKeypad(step[0]);
+
+    el.prevStepBtn.disabled = app.remote.step <= 0;
+    el.nextStepBtn.disabled = app.remote.step >= result.steps.length - 1;
+    el.prevStepBtn.style.opacity = el.prevStepBtn.disabled ? 0.4 : 1;
+    el.nextStepBtn.style.opacity = el.nextStepBtn.disabled ? 0.4 : 1;
+  }
+
+  function stepRemote(delta) {
+    if (app.mode !== 'remote') return;
+    app.remote = app.remote || { step: 0 };
+    const { model: modelId, type } = app.settings.remote || { model: 'bt7000', type: 'interval' };
+    const result = RemoteSeq.generate(modelId, type);
+    const next = Math.min(result.steps.length - 1, Math.max(0, app.remote.step + delta));
+    if (next === app.remote.step) return;
+    app.remote.step = next;
+    Audio.init(); Audio.resume(); Audio.tick(); Haptic.pulse(15);
+    renderRemote();
+  }
+
   function renderClock() {
-    el.time.textContent = fmtClock(new Date(), app.settings.h24);
-    el.phase.textContent = '';
-    el.sub.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    // Use a compact format so all digits fit on the LED display.
+    const d = new Date();
+    let h = d.getHours();
+    const ampm = h >= 12 ? 'P' : 'A';
+    if (!app.settings.h24) h = h % 12 || 12;
+    const text = (app.settings.h24 ? pad(h) : (h < 10 ? ' ' + h : String(h)))
+      + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    Display.set(text);
+    el.phase.textContent = app.settings.h24 ? '' : (ampm === 'P' ? 'PM' : 'AM');
+    el.sub.textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
     el.rounds.textContent = '';
     el.hint.textContent = '';
     setPhase('idle');
@@ -233,7 +555,7 @@
 
   function renderStopwatch() {
     const e = elapsedMs();
-    el.time.textContent = fmtTime(e, app.state !== 'idle');
+    Display.set(fmtTime(e, app.state !== 'idle'));
     el.phase.textContent = app.state === 'running' ? 'ELAPSED' : (app.state === 'paused' ? 'PAUSED' : 'READY');
     el.sub.textContent = '';
     el.rounds.textContent = '';
@@ -247,7 +569,7 @@
     if (app.phase === 'preroll') {
       const left = Math.max(0, app.settings.preroll * 1000 - e);
       el.phase.textContent = 'GET READY';
-      el.time.textContent = String(Math.ceil(left / 1000));
+      Display.set(pad(Math.ceil(left / 1000)));
       el.sub.textContent = 'starting…';
       el.rounds.textContent = '';
       el.hint.textContent = '';
@@ -257,7 +579,7 @@
     }
 
     const remaining = Math.max(0, total - e);
-    el.time.textContent = fmtTime(remaining, remaining < 10000);
+    Display.set(fmtTime(remaining, remaining < 10000));
     el.phase.textContent = app.state === 'done' ? 'DONE' : 'COUNTDOWN';
     el.sub.textContent = '';
     el.rounds.textContent = '';
@@ -277,7 +599,7 @@
     if (app.phase === 'preroll') {
       const left = Math.max(0, app.settings.preroll * 1000 - e);
       el.phase.textContent = 'GET READY';
-      el.time.textContent = String(Math.ceil(left / 1000));
+      Display.set(pad(Math.ceil(left / 1000)));
       el.sub.textContent = `${work}s WORK / ${rest}s REST × ${rounds}`;
       el.rounds.textContent = '';
       el.hint.textContent = '';
@@ -308,7 +630,7 @@
     }
 
     el.phase.textContent = phase === 'work' ? 'WORK' : 'REST';
-    el.time.textContent = fmtTime(phaseLeft, phaseLeft < 10000);
+    Display.set(fmtTime(phaseLeft, phaseLeft < 10000));
     el.sub.textContent = phase === 'work' ? `then ${rest}s rest` : `then ${work}s work`;
     el.rounds.textContent = `ROUND ${round} / ${rounds}`;
     el.hint.textContent = '';
@@ -325,7 +647,7 @@
     if (app.phase === 'preroll') {
       const left = Math.max(0, app.settings.preroll * 1000 - e);
       el.phase.textContent = 'GET READY';
-      el.time.textContent = String(Math.ceil(left / 1000));
+      Display.set(pad(Math.ceil(left / 1000)));
       el.sub.textContent = `EMOM ${interval}s × ${rounds}`;
       el.rounds.textContent = '';
       el.hint.textContent = '';
@@ -349,7 +671,7 @@
     }
 
     el.phase.textContent = `MINUTE ${round}`;
-    el.time.textContent = fmtTime(left, left < 10000);
+    Display.set(fmtTime(left, left < 10000));
     el.sub.textContent = '';
     el.rounds.textContent = `ROUND ${round} / ${rounds}`;
     el.hint.textContent = '';
@@ -364,7 +686,7 @@
     if (app.phase === 'preroll') {
       const left = Math.max(0, app.settings.preroll * 1000 - e);
       el.phase.textContent = 'GET READY';
-      el.time.textContent = String(Math.ceil(left / 1000));
+      Display.set(pad(Math.ceil(left / 1000)));
       el.sub.textContent = `AMRAP ${fmtTime(total)}`;
       el.rounds.textContent = `ROUNDS: ${app.amrapRounds}`;
       el.hint.textContent = '';
@@ -374,7 +696,7 @@
     }
 
     const remaining = Math.max(0, total - e);
-    el.time.textContent = fmtTime(remaining, remaining < 10000);
+    Display.set(fmtTime(remaining, remaining < 10000));
     el.phase.textContent = app.state === 'done' ? 'DONE' : 'AMRAP';
     el.sub.textContent = '';
     el.rounds.textContent = `ROUNDS: ${app.amrapRounds}`;
@@ -481,30 +803,31 @@
     setPhase('idle');
     Wake.release();
     if (app.mode === 'clock') { tick(); return; }
+    if (app.mode === 'remote') { renderRemote(); return; }
     // show ready frame
     if (app.mode === 'stopwatch') {
-      el.time.textContent = '00:00';
+      Display.set('00:00');
       el.phase.textContent = 'READY';
       el.sub.textContent = ''; el.rounds.textContent = ''; el.hint.textContent = 'tap START';
     } else if (app.mode === 'countdown') {
-      el.time.textContent = fmtTime(app.settings.countdown.sec * 1000);
+      Display.set(fmtTime(app.settings.countdown.sec * 1000));
       el.phase.textContent = 'COUNTDOWN'; el.sub.textContent = ''; el.rounds.textContent = ''; el.hint.textContent = '';
     } else if (app.mode === 'interval') {
       const { work, rest, rounds } = app.settings.interval;
-      el.time.textContent = fmtTime(work * 1000);
+      Display.set(fmtTime(work * 1000));
       el.phase.textContent = 'READY';
       el.sub.textContent = `${work}s WORK / ${rest}s REST`;
       el.rounds.textContent = `ROUNDS: ${rounds}`;
       el.hint.textContent = '';
     } else if (app.mode === 'emom') {
       const { interval, rounds } = app.settings.emom;
-      el.time.textContent = fmtTime(interval * 1000);
+      Display.set(fmtTime(interval * 1000));
       el.phase.textContent = 'READY';
       el.sub.textContent = `EMOM ${interval}s`;
       el.rounds.textContent = `ROUNDS: ${rounds}`;
       el.hint.textContent = '';
     } else if (app.mode === 'amrap') {
-      el.time.textContent = fmtTime(app.settings.amrap.sec * 1000);
+      Display.set(fmtTime(app.settings.amrap.sec * 1000));
       el.phase.textContent = 'AMRAP'; el.sub.textContent = '';
       el.rounds.textContent = 'ROUNDS: 0'; el.hint.textContent = '';
     }
@@ -519,7 +842,7 @@
     Audio.end();
     Haptic.pattern([200, 100, 200, 100, 400]);
     // Lock display at zero / final
-    if (app.mode === 'countdown' || app.mode === 'amrap') el.time.textContent = '00:00';
+    if (app.mode === 'countdown' || app.mode === 'amrap') Display.set('00:00');
     el.phase.textContent = 'DONE';
     el.hint.textContent = 'tap START to go again';
   }
@@ -546,7 +869,8 @@
     Store.save(app.settings);
     applyTheme();
     // Only refresh the ready-frame if we're not mid-workout — don't interrupt.
-    if (app.state === 'idle' || app.state === 'done') resetTimer();
+    if (app.mode === 'remote') { app.remote = { step: 0 }; renderRemote(); }
+    else if (app.state === 'idle' || app.state === 'done') resetTimer();
     else if (app.mode === 'clock') render();
   }
 
@@ -577,6 +901,10 @@
     const am = app.settings.amrap.sec;
     $('#amrapMin').value = Math.floor(am / 60);
     $('#amrapSec').value = am % 60;
+
+    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
+    $('#remoteModel').value = app.settings.remote.model;
+    $('#remoteType').value  = app.settings.remote.type;
   }
 
   function readInt(id, min, max, fallback) {
@@ -606,6 +934,10 @@
     app.settings.amrap.sec = Math.max(1,
       readInt('#amrapMin', 0, 999, 10) * 60 + readInt('#amrapSec', 0, 59, 0));
 
+    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
+    app.settings.remote.model = $('#remoteModel').value || 'bt7000';
+    app.settings.remote.type  = $('#remoteType').value  || 'interval';
+
     Audio.enabled = app.settings.sound;
     Haptic.enabled = app.settings.vibrate;
     Wake.enabled = app.settings.wakelock;
@@ -623,6 +955,8 @@
     el.startBtn.addEventListener('click', () => { Audio.init(); Audio.resume(); toggleStart(); });
     el.resetBtn.addEventListener('click', resetTimer);
     el.lapBtn.addEventListener('click', addRound);
+    el.prevStepBtn.addEventListener('click', () => stepRemote(-1));
+    el.nextStepBtn.addEventListener('click', () => stepRemote(+1));
     el.settingsBtn.addEventListener('click', openSheet);
     el.sheetDone.addEventListener('click', closeSheet);
     el.sheet.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeSheet));
@@ -662,10 +996,16 @@
       } catch (e) {}
     });
 
-    // Keyboard shortcuts: Space = start/pause, R = reset
+    // Keyboard shortcuts: Space = start/pause (or next step in remote), R = reset, arrows in remote
     window.addEventListener('keydown', (e) => {
       if (el.sheet.hidden === false) return;
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      if (app.mode === 'remote') {
+        if (e.code === 'Space' || e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); stepRemote(+1); }
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); stepRemote(-1); }
+        else if (e.key === 'r' || e.key === 'R') { app.remote = { step: 0 }; renderRemote(); }
+        return;
+      }
       if (e.code === 'Space') { e.preventDefault(); toggleStart(); }
       else if (e.key === 'r' || e.key === 'R') { resetTimer(); }
       else if (app.mode === 'amrap' && (e.key === 'Enter' || e.key === '+')) { addRound(); }
