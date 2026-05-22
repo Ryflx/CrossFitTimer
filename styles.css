@@ -344,9 +344,13 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 .key {
   display: inline-flex;
   align-items: center; justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.05;
+  padding: 4px;
   font-weight: 800;
-  font-size: clamp(11px, 1.8vw, 14px);
-  letter-spacing: 0.06em;
+  font-size: clamp(10px, 1.8vw, 13px);
+  letter-spacing: 0.04em;
   color: #d6d6d6;
   background: linear-gradient(180deg, #2a2a2a, #161616);
   border: 1px solid #303030;
@@ -358,9 +362,9 @@ input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent);
 }
 .key.wide { grid-column: span 3; }
 .key.medium { grid-column: span 2; }
-.key.func, .key.set { color: var(--accent); }
+.key.func, .key.set, .key.mode { color: var(--accent); }
 .key.start { color: #29d36e; }
-.key.stop  { color: var(--rest); }
+.key.stop, .key.power { color: var(--rest); }
 .key.clr   { color: var(--muted); }
 .key.active {
   color: #000;

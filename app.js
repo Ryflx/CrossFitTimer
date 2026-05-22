@@ -262,8 +262,18 @@
     interval:  { work: 20, rest: 10, rounds: 8 },
     emom:      { interval: 60, rounds: 10 },
     amrap:     { sec: 600 },
-    remote:    { model: 'bt7000', type: 'interval' },
+    remote:    { model: 'echo2', type: 'interval' },
   };
+
+  // One-time migration: older versions only supported the BT-7000 model.
+  // Move anyone still on it onto the new Echo 2.0 layout.
+  (() => {
+    const s = Store.load();
+    if (s.remote && s.remote.model === 'bt7000') {
+      s.remote.model = 'echo2';
+      Store.save(s);
+    }
+  })();
 
   const app = {
     settings: { ...DEFAULTS, ...Store.load() },
@@ -350,33 +360,39 @@
   // Buttons are matched against the keypad layout below by label.
   const RemoteSeq = {
     models: {
-      bt7000: {
-        name: 'Rogue BT-7000 / Echo Gym Timer',
-        // Keypad layout (rows × 3 columns). `wide` and `medium` span columns.
+      echo2: {
+        name: 'Rogue Echo Gym Timer 2.0',
+        // Keypad mirrors the physical Echo 2.0 remote, flattened into a 3-col grid.
         keypad: [
-          [{ label: 'FUNC', cls: 'func', span: 'medium' }, { label: 'SET', cls: 'set', span: 1 }],
+          [{ label: 'INT', cls: 'mode' }, { label: 'TBT', cls: 'mode' }, { label: 'FGB', cls: 'mode' }],
+          [{ label: 'COUNT UP',   cls: 'mode', span: 'wide' }],
+          [{ label: 'COUNT DOWN', cls: 'mode', span: 'wide' }],
+          [{ label: 'EMOM',       cls: 'mode', span: 'wide' }],
+          [{ label: 'CLOCK', cls: 'mode' }, { label: 'RESET', cls: 'stop' }, { label: 'EXIT', cls: 'clr' }],
+          [{ label: '◄' }, { label: '▲' }, { label: '►' }],
+          [{ label: 'VOL−' }, { label: '▼' }, { label: 'VOL+' }],
           [{ label: '1' }, { label: '2' }, { label: '3' }],
           [{ label: '4' }, { label: '5' }, { label: '6' }],
           [{ label: '7' }, { label: '8' }, { label: '9' }],
-          [{ label: 'CLR', cls: 'clr' }, { label: '0' }, { label: '·', cls: 'clr' }],
-          [{ label: 'START', cls: 'start', span: 'medium' }, { label: 'STOP', cls: 'stop' }],
+          [{ label: 'POWER', cls: 'power' }, { label: '0' }, { label: 'SET', cls: 'set' }],
+          [{ label: 'START/STOP', cls: 'start', span: 'wide' }],
         ],
         seq: {
           stopwatch: () => [
-            ['FUNC',  'Press FUNC until the top line reads "STOPWATCH" (the display shows 0:00 with no preset).'],
-            ['START', 'Press START to begin counting up. STOP pauses, STOP twice resets.'],
+            ['COUNT UP',   'Press COUNT UP. The display shows 0:00.'],
+            ['START/STOP', 'Press START/STOP to begin counting up. Press again to pause; RESET clears to 0:00.'],
           ],
           countdown: (cfg) => {
             const mmss = pad(cfg.min) + pad(cfg.sec);
             const steps = [
-              ['FUNC',  'Press FUNC until the top line reads "COUNTDOWN".'],
-              ['SET',   'Press SET to enter the duration.'],
+              ['COUNT DOWN', 'Press COUNT DOWN.'],
+              ['SET',        'Press SET to enter the duration.'],
             ];
             for (let i = 0; i < 4; i++) {
               steps.push([mmss[i], `Enter ${mmss[i]} — digit ${i + 1} of 4 (MMSS = ${pad(cfg.min)}:${pad(cfg.sec)}).`]);
             }
-            steps.push(['SET',   `Press SET to confirm ${pad(cfg.min)}:${pad(cfg.sec)}.`]);
-            steps.push(['START', 'Press START to begin the countdown.']);
+            steps.push(['SET',        `Press SET to save ${pad(cfg.min)}:${pad(cfg.sec)}.`]);
+            steps.push(['START/STOP', 'Press START/STOP to begin the countdown.']);
             return steps;
           },
           interval: (cfg) => {
@@ -384,51 +400,49 @@
             const workMmss = pad(Math.floor(cfg.work / 60)) + pad(cfg.work % 60);
             const restMmss = pad(Math.floor(cfg.rest / 60)) + pad(cfg.rest % 60);
             const steps = [
-              ['FUNC',  'Press FUNC until the top line reads "TABATA" (used for any work/rest interval).'],
-              ['SET',   'Press SET to start programming. First field is ROUNDS.'],
+              ['INT', 'Press INT to start interval programming. First field is ROUNDS.'],
             ];
             for (let i = 0; i < 2; i++) {
               steps.push([rounds[i], `Enter ${rounds[i]} — digit ${i + 1} of 2 for ROUNDS (${cfg.rounds}).`]);
             }
-            steps.push(['SET', `Confirm ${cfg.rounds} rounds. Next field is WORK time.`]);
+            steps.push(['INT', 'Press INT a 2nd time to move to WORK time.']);
             for (let i = 0; i < 4; i++) {
               steps.push([workMmss[i], `Enter ${workMmss[i]} — digit ${i + 1} of 4 for WORK (${workMmss.slice(0,2)}:${workMmss.slice(2)}).`]);
             }
-            steps.push(['SET', 'Confirm work time. Next field is REST time.']);
+            steps.push(['INT', 'Press INT a 3rd time to move to REST time.']);
             for (let i = 0; i < 4; i++) {
               steps.push([restMmss[i], `Enter ${restMmss[i]} — digit ${i + 1} of 4 for REST (${restMmss.slice(0,2)}:${restMmss.slice(2)}).`]);
             }
-            steps.push(['SET',   'Confirm rest time.']);
-            steps.push(['START', 'Press START. Work timer counts down, beep, rest timer counts down, repeat for all rounds.']);
+            steps.push(['INT', 'Press INT a 4th time to save the program.']);
+            steps.push(['START/STOP', 'Press START/STOP. Work counts down, beep, rest counts down, repeat for all rounds.']);
             return steps;
           },
           emom: (cfg) => {
-            // BT-7000 doesn't have a separate EMOM program — use Tabata with 0 rest.
+            // Echo 2.0 has a dedicated EMOM button; per the manual, an EMOM is
+            // equivalent to INT with rest = 00:00, so we drive it through INT.
             const rounds = pad(cfg.rounds);
             const intMmss = pad(Math.floor(cfg.interval / 60)) + pad(cfg.interval % 60);
             const steps = [
-              ['FUNC',  'Press FUNC until the top line reads "TABATA". (EMOM is Tabata with zero rest.)'],
-              ['SET',   'Press SET to start programming. First field is ROUNDS.'],
+              ['INT', 'Press INT to start interval programming (EMOM = interval with 0 rest). First field is ROUNDS.'],
             ];
             for (let i = 0; i < 2; i++) {
               steps.push([rounds[i], `Enter ${rounds[i]} — digit ${i + 1} of 2 for ROUNDS (${cfg.rounds}).`]);
             }
-            steps.push(['SET', `Confirm ${cfg.rounds} rounds. Next field is WORK time (this is your EMOM interval).`]);
+            steps.push(['INT', 'Press INT a 2nd time to move to WORK time (this is your EMOM interval).']);
             for (let i = 0; i < 4; i++) {
               steps.push([intMmss[i], `Enter ${intMmss[i]} — digit ${i + 1} of 4 for INTERVAL (${intMmss.slice(0,2)}:${intMmss.slice(2)}).`]);
             }
-            steps.push(['SET', 'Confirm interval. Next field is REST — enter all zeros.']);
+            steps.push(['INT', 'Press INT a 3rd time to move to REST. Enter all zeros for EMOM behaviour.']);
             for (let i = 0; i < 4; i++) {
               steps.push(['0', `Enter 0 — digit ${i + 1} of 4 for REST (0:00).`]);
             }
-            steps.push(['SET',   'Confirm zero rest.']);
-            steps.push(['START', 'Press START. Each round ticks for one full interval, then the next begins with a beep.']);
+            steps.push(['INT', 'Press INT a 4th time to save.']);
+            steps.push(['START/STOP', 'Press START/STOP. Each round runs the full interval, then beeps and continues.']);
             return steps;
           },
           amrap: (cfg) => {
-            // AMRAP = Countdown on the clock; you count rounds yourself.
-            return RemoteSeq.models.bt7000.seq.countdown(cfg).map(([b, t], i, arr) => {
-              if (i === arr.length - 1) return [b, t + ' (count your rounds on the floor — the clock just displays remaining time.)'];
+            return RemoteSeq.models.echo2.seq.countdown(cfg).map(([b, t], i, arr) => {
+              if (i === arr.length - 1) return [b, t + ' (Count rounds on the floor — the clock just shows remaining time.)'];
               return [b, t];
             });
           },
@@ -437,7 +451,7 @@
     },
 
     generate(modelId, type) {
-      const model = this.models[modelId] || this.models.bt7000;
+      const model = this.models[modelId] || this.models.echo2;
       const fn = model.seq[type];
       if (!fn) return { model, steps: [], cfg: null };
       const cfg = this.cfgFor(type);
@@ -485,7 +499,7 @@
 
   // ---------- Remote mode render ----------
   function renderRemoteKeypad(activeBtn) {
-    const model = RemoteSeq.models[app.settings.remote.model] || RemoteSeq.models.bt7000;
+    const model = RemoteSeq.models[app.settings.remote.model] || RemoteSeq.models.echo2;
     el.remoteKeypad.innerHTML = '';
     for (const row of model.keypad) {
       for (const btn of row) {
@@ -504,7 +518,7 @@
 
   function renderRemote() {
     // Make sure we have remote settings.
-    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
+    if (!app.settings.remote) app.settings.remote = { model: 'echo2', type: 'interval' };
     const { model: modelId, type } = app.settings.remote;
     const result = RemoteSeq.generate(modelId, type);
     app.remote = app.remote || { step: 0 };
@@ -528,7 +542,7 @@
   function stepRemote(delta) {
     if (app.mode !== 'remote') return;
     app.remote = app.remote || { step: 0 };
-    const { model: modelId, type } = app.settings.remote || { model: 'bt7000', type: 'interval' };
+    const { model: modelId, type } = app.settings.remote || { model: 'echo2', type: 'interval' };
     const result = RemoteSeq.generate(modelId, type);
     const next = Math.min(result.steps.length - 1, Math.max(0, app.remote.step + delta));
     if (next === app.remote.step) return;
@@ -902,8 +916,7 @@
     $('#amrapMin').value = Math.floor(am / 60);
     $('#amrapSec').value = am % 60;
 
-    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
-    $('#remoteModel').value = app.settings.remote.model;
+    if (!app.settings.remote) app.settings.remote = { model: 'echo2', type: 'interval' };
     $('#remoteType').value  = app.settings.remote.type;
   }
 
@@ -934,8 +947,8 @@
     app.settings.amrap.sec = Math.max(1,
       readInt('#amrapMin', 0, 999, 10) * 60 + readInt('#amrapSec', 0, 59, 0));
 
-    if (!app.settings.remote) app.settings.remote = { model: 'bt7000', type: 'interval' };
-    app.settings.remote.model = $('#remoteModel').value || 'bt7000';
+    if (!app.settings.remote) app.settings.remote = { model: 'echo2', type: 'interval' };
+    app.settings.remote.model = 'echo2';
     app.settings.remote.type  = $('#remoteType').value  || 'interval';
 
     Audio.enabled = app.settings.sound;
