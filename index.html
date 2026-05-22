@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#000000" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="WOD Clock" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="description" content="Gym-style timer for CrossFit workouts." />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="stylesheet" href="styles.css" />
+<title>WOD Clock</title>
+</head>
+<body>
+<div id="app" class="app" data-mode="clock" data-state="idle">
+
+  <header class="topbar">
+    <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.14,12.94a7.49,7.49,0,0,0,0-1.88l2-1.58a.5.5,0,0,0,.12-.64l-1.92-3.32a.5.5,0,0,0-.61-.22l-2.39.96a7.39,7.39,0,0,0-1.62-.94l-.36-2.54A.5.5,0,0,0,13.86,2H10.14a.5.5,0,0,0-.5.42L9.28,4.96a7.39,7.39,0,0,0-1.62.94L5.27,4.94a.5.5,0,0,0-.61.22L2.74,8.48a.5.5,0,0,0,.12.64l2,1.58a7.49,7.49,0,0,0,0,1.88l-2,1.58a.5.5,0,0,0-.12.64l1.92,3.32a.5.5,0,0,0,.61.22l2.39-.96a7.39,7.39,0,0,0,1.62.94l.36,2.54a.5.5,0,0,0,.5.42h3.72a.5.5,0,0,0,.5-.42l.36-2.54a7.39,7.39,0,0,0,1.62-.94l2.39.96a.5.5,0,0,0,.61-.22l1.92-3.32a.5.5,0,0,0-.12-.64ZM12,15.5A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z"/></svg>
+    </button>
+    <div class="brand">WOD CLOCK</div>
+    <button id="fullscreenBtn" class="icon-btn" aria-label="Fullscreen" title="Fullscreen">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M5,5h5V3H3v7h2Zm0,9H3v7h7V19H5Zm14-9V3H14v2h5v5h2Zm0,9v5H14v2h7V14Z"/></svg>
+    </button>
+  </header>
+
+  <nav class="modes" role="tablist" aria-label="Timer mode">
+    <button class="mode" data-mode="clock"     role="tab">CLOCK</button>
+    <button class="mode" data-mode="stopwatch" role="tab">STOPWATCH</button>
+    <button class="mode" data-mode="countdown" role="tab">COUNTDOWN</button>
+    <button class="mode" data-mode="interval"  role="tab">INTERVAL</button>
+    <button class="mode" data-mode="emom"      role="tab">EMOM</button>
+    <button class="mode" data-mode="amrap"     role="tab">AMRAP</button>
+  </nav>
+
+  <main class="display" id="display">
+    <div class="phase" id="phase"></div>
+    <div class="time" id="time">00:00</div>
+    <div class="sub" id="sub"></div>
+    <div class="rounds" id="rounds"></div>
+    <div class="hint" id="hint"></div>
+  </main>
+
+  <footer class="controls">
+    <button id="resetBtn" class="ctrl ctrl-reset" type="button">RESET</button>
+    <button id="startBtn" class="ctrl ctrl-start" type="button">START</button>
+    <button id="lapBtn" class="ctrl ctrl-lap" type="button">+1 ROUND</button>
+  </footer>
+
+  <!-- Settings sheet -->
+  <div id="sheet" class="sheet" hidden aria-hidden="true">
+    <div class="sheet-backdrop" data-close></div>
+    <div class="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-head">
+        <div id="sheetTitle" class="sheet-title">Settings</div>
+        <button class="icon-btn" data-close aria-label="Close">
+          <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M18.3,5.71L12,12l6.3,6.29-1.41,1.42L10.59,13.41,4.3,19.71,2.88,18.29,9.17,12,2.88,5.71,4.3,4.29l6.29,6.3L16.89,4.29Z"/></svg>
+        </button>
+      </div>
+
+      <div class="sheet-body">
+        <section class="settings-section">
+          <h3>General</h3>
+          <label class="row">
+            <span>Pre-roll countdown</span>
+            <input id="prerollInput" type="number" min="0" max="60" inputmode="numeric" /> <span class="unit">s</span>
+          </label>
+          <label class="row">
+            <span>Sound</span>
+            <input id="soundInput" type="checkbox" />
+          </label>
+          <label class="row">
+            <span>Vibration</span>
+            <input id="vibrateInput" type="checkbox" />
+          </label>
+          <label class="row">
+            <span>Keep screen on</span>
+            <input id="wakelockInput" type="checkbox" />
+          </label>
+          <label class="row">
+            <span>Display color</span>
+            <select id="colorInput">
+              <option value="red">Red</option>
+              <option value="amber">Amber</option>
+              <option value="green">Green</option>
+              <option value="white">White</option>
+            </select>
+          </label>
+          <label class="row">
+            <span>24-hour clock</span>
+            <input id="h24Input" type="checkbox" />
+          </label>
+        </section>
+
+        <section class="settings-section" data-for="countdown">
+          <h3>Countdown</h3>
+          <div class="row">
+            <span>Duration</span>
+            <div class="ms">
+              <input id="cdMin" type="number" min="0" max="999" inputmode="numeric" /><span>m</span>
+              <input id="cdSec" type="number" min="0" max="59" inputmode="numeric" /><span>s</span>
+            </div>
+          </div>
+          <div class="presets" data-for="countdown">
+            <button data-cd="60">1:00</button>
+            <button data-cd="180">3:00</button>
+            <button data-cd="300">5:00</button>
+            <button data-cd="600">10:00</button>
+            <button data-cd="1200">20:00</button>
+          </div>
+        </section>
+
+        <section class="settings-section" data-for="interval">
+          <h3>Interval</h3>
+          <div class="row">
+            <span>Work</span>
+            <div class="ms">
+              <input id="ivWorkMin" type="number" min="0" max="59" inputmode="numeric" /><span>m</span>
+              <input id="ivWorkSec" type="number" min="0" max="59" inputmode="numeric" /><span>s</span>
+            </div>
+          </div>
+          <div class="row">
+            <span>Rest</span>
+            <div class="ms">
+              <input id="ivRestMin" type="number" min="0" max="59" inputmode="numeric" /><span>m</span>
+              <input id="ivRestSec" type="number" min="0" max="59" inputmode="numeric" /><span>s</span>
+            </div>
+          </div>
+          <label class="row">
+            <span>Rounds</span>
+            <input id="ivRounds" type="number" min="1" max="99" inputmode="numeric" />
+          </label>
+          <div class="presets" data-for="interval">
+            <button data-iv="20,10,8">Tabata 20/10×8</button>
+            <button data-iv="40,20,10">40/20×10</button>
+            <button data-iv="60,30,8">60/30×8</button>
+            <button data-iv="30,30,12">30/30×12</button>
+          </div>
+        </section>
+
+        <section class="settings-section" data-for="emom">
+          <h3>EMOM</h3>
+          <label class="row">
+            <span>Interval</span>
+            <div class="ms">
+              <input id="emomMin" type="number" min="0" max="59" inputmode="numeric" /><span>m</span>
+              <input id="emomSec" type="number" min="0" max="59" inputmode="numeric" /><span>s</span>
+            </div>
+          </label>
+          <label class="row">
+            <span>Total rounds</span>
+            <input id="emomRounds" type="number" min="1" max="99" inputmode="numeric" />
+          </label>
+          <div class="presets" data-for="emom">
+            <button data-emom="60,10">EMOM 10</button>
+            <button data-emom="60,20">EMOM 20</button>
+            <button data-emom="90,15">E90s ×15</button>
+            <button data-emom="120,10">E2MOM 10</button>
+          </div>
+        </section>
+
+        <section class="settings-section" data-for="amrap">
+          <h3>AMRAP</h3>
+          <div class="row">
+            <span>Duration</span>
+            <div class="ms">
+              <input id="amrapMin" type="number" min="0" max="999" inputmode="numeric" /><span>m</span>
+              <input id="amrapSec" type="number" min="0" max="59" inputmode="numeric" /><span>s</span>
+            </div>
+          </div>
+          <div class="presets" data-for="amrap">
+            <button data-amrap="300">5 min</button>
+            <button data-amrap="600">10 min</button>
+            <button data-amrap="720">12 min</button>
+            <button data-amrap="900">15 min</button>
+            <button data-amrap="1200">20 min</button>
+          </div>
+          <p class="muted">Tap the time during the workout to add a round.</p>
+        </section>
+      </div>
+
+      <div class="sheet-foot">
+        <button id="sheetDone" class="ctrl ctrl-start">DONE</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

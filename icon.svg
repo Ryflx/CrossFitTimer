@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0a0a0a"/>
+  <rect x="40" y="40" width="432" height="432" rx="64" fill="none" stroke="#1a1a1a" stroke-width="4"/>
+  <g font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace" font-weight="900" text-anchor="middle">
+    <text x="256" y="270" font-size="180" fill="#ff2a2a" letter-spacing="-8" style="text-shadow:0 0 30px #ff2a2a">12:34</text>
+    <text x="256" y="360" font-size="56" fill="#888" letter-spacing="8">WOD</text>
+  </g>
+</svg>

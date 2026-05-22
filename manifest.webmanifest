@@ -1,0 +1,27 @@
+{
+  "name": "WOD Clock",
+  "short_name": "WOD Clock",
+  "description": "Gym-style timer for CrossFit workouts. Clock, stopwatch, countdown, interval, EMOM and AMRAP modes.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#ff2a2a",
+  "categories": ["fitness", "sports", "health", "utilities"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
